@@ -14,7 +14,11 @@ exports.generateRandomString = function() {
 exports.checkTTL = function(upsertDateTime) {
     const ttl = process.env.TTL || 5;
 
-    const diffInMins = parseInt((new Date() - upsertDateTime)/1000*60);
+    const diffInMins = parseInt((new Date().getTime() - upsertDateTime.getTime())/(1000 * 60) % 60);
 
     return diffInMins < ttl;
+}
+
+exports.formOutput = function(key, value) {
+    return {'key': key, 'value': value};
 }
