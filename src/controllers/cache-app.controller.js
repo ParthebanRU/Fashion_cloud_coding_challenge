@@ -23,16 +23,24 @@ exports.findAll = async (req, res) => {
 }
 
 exports.findOne = async (req, res) => {
-    cacheApp.findOne({'key': req.params.key}, function(err, data) {
+    const key = req.params.key;
+    cacheApp.findOne({'key': key}, function(err, data) {
         if(err) {
             console.log('err: ', err);
             res.status(500).send('Internal Status error');
         } else {
-            if(cacheService.checkTTL(data.upsertDateTime)) {
-                res.status(200).send(cacheService.formOutput(data.key, data.value));    
+            if(data) {
+                if(cacheService.checkTTL(data.upsertDateTime)) {
+                    console.log('Cache hit');
+                    res.status(200).send(cacheService.formOutput(data.key, data.value));    
+                } else {
+                    deleteSingleRecord(res, {'req': key}, false);
+                    res.status(200).send('');
+                }   
             } else {
-                deleteSingleRecord(res, {'req': req.body.key}, false);
-                res.status(200).send('');
+                console.log('Cache miss');
+                const bodyValue = generateRandomString(req); 
+                createSingleRecord(res, {'key': key, 'value': bodyValue, 'upsertDateTime': + new Date()});
             }
         }
     });
@@ -52,11 +60,7 @@ exports.findKeys = async (req, res) => {
 exports.createCache = async (req, res) => {
 
     const key = req.body.key;
-    let bodyValue = req.body.value;
-
-    if(! bodyValue) {
-        bodyValue = cacheService.generateRandomString();
-    }
+    const bodyValue = generateRandomString(req);
 
     cacheApp.findOne({'key': key}, function(err, data) {
 
@@ -74,14 +78,7 @@ exports.createCache = async (req, res) => {
                     }
                 })
             } else {
-                cacheApp.create({'key': key, 'value': bodyValue, 'upsertDateTime': + new Date()}, function(err) {
-                    if(err) {
-                        console.log('err: ', err);
-                        res.status(500).send('Internal Status error');
-                    } else {
-                        res.status(200).send('Inserted successfully');
-                    }
-                })
+                createSingleRecord(res, {'key': key, 'value': bodyValue, 'upsertDateTime': + new Date()});
             }
         }
 
@@ -119,4 +116,25 @@ function deleteSingleRecord(res, key, isDirect) {
             }
         }
     })
+}
+
+function createSingleRecord(res, body) {
+    cacheApp.create(body, function(err) {
+        if(err) {
+            console.log('err: ', err);
+            res.status(500).send('Internal Status error');
+        } else {
+            res.status(200).send('New Data Inserted successfully');
+        }
+    })
+}
+
+function generateRandomString(req) {
+    let bodyValue = req.body.value;
+
+    if(! bodyValue) {
+        bodyValue = cacheService.generateRandomString();
+    }
+
+    return bodyValue;
 }
