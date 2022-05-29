@@ -12,13 +12,16 @@ exports.generateRandomString = function() {
 }
 
 exports.checkTTL = function(upsertDateTime) {
-    const ttl = process.env.TTL || 5;
 
     const diffInMins = parseInt((new Date().getTime() - upsertDateTime.getTime())/(1000 * 60) % 60);
 
-    return diffInMins < ttl;
+    return diffInMins < (process.env.TTL || 20);
 }
 
 exports.formOutput = function(key, value) {
     return {'key': key, 'value': value};
+}
+
+exports.checkMaxRecords = function(listSize) {
+    return listSize - (process.env.MAX_RECORDS || 5);
 }

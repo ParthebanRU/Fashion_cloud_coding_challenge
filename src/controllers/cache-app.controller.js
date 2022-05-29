@@ -9,12 +9,33 @@ exports.findAll = async (req, res) => {
             res.status(500).send('Internal Status error');
         } else {
 
-            for(var i=0; i < data.length; i ++) {
+            const dataLength = data.length;
+            for(var i=0; i < dataLength; i ++) {
                 if(cacheService.checkTTL(data[i].upsertDateTime)) {
                     returnValues.push(cacheService.formOutput(data[i].key, data[i].value));
                 } else {
                     deleteSingleRecord(res, {'req': req.body.key}, false);
                 }
+            }
+
+            /* 
+            * If we have records greater than the accepted value
+            * We will calculate the exceeding number of records.
+            * We will delete the oldest records, so we arrange by asc and remove the exceeding records
+            */
+           const exceedingRecords = cacheService.checkMaxRecords(dataLength);
+            if(exceedingRecords > 0) {
+                const query = cacheApp.find({}).sort({'upsertDateTime': 'asc'}).limit(exceedingRecords).select('key');
+                query.exec(function(err, data) {
+                    if(err) {
+                        console.log('err: ', err);
+                    } else {
+                        for(var i=0; i<data.length; i++) {
+                            deleteSingleRecord(res, {'req': data.key}, false);
+                        }
+                    }
+                })
+
             }
 
             res.status(200).send(returnValues);
@@ -39,8 +60,8 @@ exports.findOne = async (req, res) => {
                 }   
             } else {
                 console.log('Cache miss');
-                const bodyValue = generateRandomString(req); 
-                createSingleRecord(res, {'key': key, 'value': bodyValue, 'upsertDateTime': + new Date()});
+                const bodyValue = generateRandomString(req.params.value); 
+                createSingleRecord(res, {'key': key, 'value': bodyValue, 'upsertDateTime': + new Date()}, true);
             }
         }
     });
@@ -59,30 +80,35 @@ exports.findKeys = async (req, res) => {
 
 exports.createCache = async (req, res) => {
 
-    const key = req.body.key;
-    const bodyValue = generateRandomString(req);
+    let loop = 0;
+    const body = req.body;
+    const bodyLength = body.length;
 
-    cacheApp.findOne({'key': key}, function(err, data) {
-
-        if(err) {
-            console.log('err: ', err);
-            res.status(500).send('Internal Status error');
-        } else {
-            if(data) {
-                cacheApp.findOneAndUpdate({'key': req.body.key}, {'value': bodyValue, 'upsertDateTime': + new Date()}, function(err) {
-                    if(err) {
-                        console.log('err: ', err);
-                        res.status(500).send('Internal Status error');
-                    } else {
-                        res.status(200).send('Updated successfully');
-                    }
-                })
+    for(var i=0; i <bodyLength; i++) {
+        const key = body[i].key;
+        const bodyValue = generateRandomString(body[i].value);
+        cacheApp.findOne({'key': key}, function(err, data) {
+            loop ++; 
+            if(err) {
+                console.log('err: ', err);
+                res.status(500).send('Internal Status error');
             } else {
-                createSingleRecord(res, {'key': key, 'value': bodyValue, 'upsertDateTime': + new Date()});
+                if(data) {
+                    cacheApp.findOneAndUpdate({'key': key}, {'value': bodyValue, 'upsertDateTime': + new Date()}, function(err) {
+                        if(err) {
+                            console.log('err: ', err);
+                            res.status(500).send('Internal Status error');
+                        } else {
+                            res.status(200).send('Updated successfully');
+                        }
+                    })
+                } else {
+                    createSingleRecord(res, {'key': key, 'value': bodyValue, 'upsertDateTime': + new Date()}, (loop === bodyLength));
+                }
             }
-        }
-
-    });
+    
+        });   
+    }
 
 }
 
@@ -118,19 +144,21 @@ function deleteSingleRecord(res, key, isDirect) {
     })
 }
 
-function createSingleRecord(res, body) {
+function createSingleRecord(res, body, isFinalRecord) {
     cacheApp.create(body, function(err) {
         if(err) {
             console.log('err: ', err);
             res.status(500).send('Internal Status error');
         } else {
-            res.status(200).send('New Data Inserted successfully');
+            if(isFinalRecord) {
+                res.status(200).send('New Data Inserted successfully');
+            }
         }
     })
 }
 
-function generateRandomString(req) {
-    let bodyValue = req.body.value;
+function generateRandomString(value) {
+    let bodyValue = value;
 
     if(! bodyValue) {
         bodyValue = cacheService.generateRandomString();

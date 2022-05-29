@@ -25,6 +25,8 @@ API's to Use
     4) Remove single entry - HTTP Method: DELETE, URL: /{key_value}
     5) Remove all entries - HTTP Method: DELETE, URL: /
 
+    *Note: You can use create/update api for multiple entries by sending the body as an array of json values.
+
 Tech stack used
 -----------------------------
 node version: 16.15.0
@@ -40,4 +42,6 @@ To change the port on which the app is running, goto .env file and change the va
 
 To change the time to live (TTL), goto .env file and change the value of the variable TTL.
 
-To change the length of random generated string, goto .env file and change the value of the variable RS_LENGTH.
+To change the length of random generated string, goto .env file and change the value of the variable RS_LENGTH. Default value is 20.
+
+To change the number of records that should exists, goto .env file and change the value of the variable MAX_RECORDS. Default value is 5.
